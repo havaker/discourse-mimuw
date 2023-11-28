@@ -1,5 +1,5 @@
 {
-  description = "Discourse test instance configuration";
+  description = "MIMUW Discourse instance configuration";
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
@@ -11,7 +11,7 @@
   # - Services running on the system
   # - Configuration of that services
   #
-  # The goal of defining in such manner is to make it:
+  # The goal of defining it in such manner is to make it:
   # - Easy to deploy it to some machine
   # - Reproducible (the same configuration will always result in the same
   #   system)
@@ -23,7 +23,9 @@
   # The configuration is defined in a modular way. Each module
   # (`outputs.nixosModules.*`) defines a specific part of the configuration.
   # The modules are then combined together to form a complete system
-  # configuration (`outputs.nixosSystem.*`).
+  # configuration -- for example nixosModules.base is combined (using the
+  # `include` attribute) with nixosModules.test to form a configuration that is
+  # used for testing.
   outputs = { self, nixpkgs, ... }:
     let
       system = "x86_64-linux";
@@ -32,25 +34,19 @@
       };
     in
     {
+      # Running `nix fmt` in the project's root directory will format all
+      # *.nix files in the project using nixpkgs-fmt.
       formatter.${system} = pkgs.nixpkgs-fmt;
 
-      # This modules specifies the configuration that are both:
-      # - Not specific to Discourse
-      # - Valid for production and development configuration
+      # This modules specifies the configuration that is both valid for
+      # production, development configuration and tests.
+      # For example, Discourse's site title is included here, because it should
+      # be the same in both configurations. Hostname is not included here,
+      # because in production it should point to some real domain, while in
+      # development it should point to localhost.
       nixosModules.base = { ... }: {
-        # Enable fish shell;)))
-        programs.fish.enable = true;
-
         system.stateVersion = "23.05";
-      };
 
-      # This module specifies the Discourse's configuration options that are
-      # used in both the production and development configuration. For example,
-      # site title is included here, because it should be the same in both
-      # configurations. Hostname is not included here, because in production it
-      # should point to some real domain, while in development it should point
-      # to localhost.
-      nixosModules.discourse = { ... }: {
         services.postgresql.package = pkgs.postgresql_13;
 
         services.discourse = {
@@ -69,48 +65,31 @@
         };
       };
 
-      # This module defines the discourse configuration for local development.
-      # It is intended to be used as a part of a virtual machine configuration,
-      # which can be run using `nix run .#vm`.
+      # This module defines the discourse server configuration for testing
+      # purposes. It is intended to be used as a part of the flake checks.
       #
-      # Development configuration differs from the production one in the
+      # Test configuration differs from the production one in the
       # following ways:
       # - No TLS is used (ACME is disabled).
-      # - Domain name is set to localhost.
-      # - Port 8080 is used instead of 80.
+      # - Domain name is set to "server".
       # - Mailhog is used as a mail server, instead of a real one (it allows to
       #   inspect sent emails).
       # - Discourse admin password is set to a fixed value.
-      # - A test user (with root privileges) is automatically logged in.
-      nixosModules.dev = { config, lib, ... }: {
-        # These options are passed to the quemu that runs the dev VM locally.
-        virtualisation = {
-          graphics = false;
-          memorySize = 4096;
-          cores = 4;
-          # Expose Discourse at port 8080 (Mailhog at 8081) on the host system.
-          # This makes it possible to access the Discourse instance and Mailhog
-          # UI from the host-system browser.
-          forwardPorts = [
-            { from = "host"; host.port = 8080; guest.port = config.services.nginx.defaultHTTPListenPort; }
-            { from = "host"; host.port = 8081; guest.port = config.services.mailhog.uiPort; }
-          ];
-        };
+      nixosModules.test = { config, lib, ... }: {
+        imports = [
+          self.nixosModules.base
+        ];
 
-        # Allow access from host to the VM instances of Discourse and Mailhog UI.
+        # Allow external access to Discourse and Mailhog.
         networking.firewall.allowedTCPPorts = [
-          config.services.mailhog.uiPort
           config.services.nginx.defaultHTTPListenPort
+          config.services.mailhog.uiPort
         ];
 
         services.discourse = {
-          # Set the domain name used by Discourse to localhost. Without this
-          # setting, accessing Discourse from the host system at
-          # http://localhost:8080 would result in Discourse rejecting the
-          # request.
-          hostname = "localhost";
+          hostname = lib.mkDefault "server";
 
-          # Stuff related to TLS is not needed in the development configuration.
+          # Stuff related to TLS is not needed in the test configuration.
           enableACME = false;
 
           mail = {
@@ -125,9 +104,57 @@
             contactEmailAddress = "admin@localhost";
           };
 
-          # Hardcode the admin password for the local development purposes.
+          # Hardcode the admin password for the testing purposes.
           admin.passwordFile = "${pkgs.writeText "admin-pass" "qwerasdfZXCV123"}";
         };
+
+        # Fake SMTP server that allows to inspect sent emails.
+        services.mailhog = {
+          enable = true;
+        };
+      };
+
+      # This module defines the discourse configuration for local development.
+      # Local development might consist of: visualizing changes to the
+      # discourse configuration by browsing the forum using a normal web
+      # browser, tweaking visual settings, exploring forum's capabilities.
+      #
+      # Development configuration inherits most of defined options from the
+      # test configuration (self.nixosModules.test). It differs from it in the
+      # the following ways:
+      # - Domain name is set to localhost.
+      # - Port 8080 is used instead of 80.
+      # - A test user (with root privileges) is automatically logged in.
+      #
+      # It is intended to be used as a part of a virtual machine configuration,
+      # which can be run using `nix run .#vm`.
+      nixosModules.dev = { config, lib, ... }: {
+        imports = [
+          # Include the test configuration.
+          self.nixosModules.test
+        ];
+
+        # These options are passed to the quemu that runs the dev VM locally.
+        virtualisation = {
+          graphics = false;
+          memorySize = 4096;
+          cores = 8;
+          # Expose Discourse at port 8080 (Mailhog at 8081) on the host system.
+          # This makes it possible to access the Discourse instance and Mailhog
+          # UI from the host-system browser.
+          forwardPorts = [
+            { from = "host"; host.port = 8080; guest.port = config.services.nginx.defaultHTTPListenPort; }
+            { from = "host"; host.port = 8081; guest.port = config.services.mailhog.uiPort; }
+          ];
+        };
+
+        # Set the domain name used by Discourse to localhost. Without this
+        # setting, accessing Discourse from the host system at
+        # http://localhost:8080 would result in Discourse rejecting the
+        # request.
+        # The setting is using `lib.mkForce` to make it possible to override
+        # the value specified in the test configuration.
+        services.discourse.hostname = lib.mkForce "localhost";
 
         # Discourse expects to be run on port 80, but we want to be exposed on
         # host system's localhost:8080. This need is dictated by the fact that
@@ -152,11 +179,6 @@
           '';
         };
 
-        # Fake SMTP server that allows to inspect sent emails.
-        services.mailhog = {
-          enable = true;
-        };
-
         # Basic networking configuration.
         networking.interfaces.eth0.useDHCP = true;
 
@@ -171,24 +193,25 @@
         };
         security.sudo.wheelNeedsPassword = false;
 
+        # Enable fish shell;)))
+        programs.fish.enable = true;
         # Force fish to use 256 colors instead of none.
         environment.variables.TERM = "xterm-256color";
       };
 
       # Defines a virtual machine configuration for local development.
-      nixosConfigurations.vm = nixpkgs.lib.nixosSystem {
-        inherit system;
-        modules = [
-          self.nixosModules.base
-          self.nixosModules.discourse
-          (x: { virtualisation.vmVariant = self.nixosModules.dev x; })
-        ];
-      };
-
       # By packaging the VM configuration, it can be run with a simple
       # `nix run# .#vm`.
       packages.x86_64-linux.vm =
-        self.nixosConfigurations.vm.config.system.build.vm;
+        let
+          vm = nixpkgs.lib.nixosSystem {
+            inherit system;
+            modules = [
+              (x: { virtualisation.vmVariant = self.nixosModules.dev x; })
+            ];
+          };
+        in
+        vm.config.system.build.vm;
 
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
