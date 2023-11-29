@@ -80,6 +80,15 @@
           self.nixosModules.base
         ];
 
+        # Default limits for the virtual machine that runs the tests are too
+        # low. Memory size needs to be increased for the test to run,
+        # increasing available cores is not necessary, but it makes the tests
+        # run faster.
+        virtualisation = {
+          memorySize = 4096;
+          cores = 8;
+        };
+
         # Allow external access to Discourse and Mailhog.
         networking.firewall.allowedTCPPorts = [
           config.services.nginx.defaultHTTPListenPort
@@ -122,8 +131,8 @@
       # Development configuration inherits most of defined options from the
       # test configuration (self.nixosModules.test). It differs from it in the
       # the following ways:
-      # - Domain name is set to localhost.
-      # - Port 8080 is used instead of 80.
+      # - Domain name is set to localhost:8080.
+      # - A port forwarding rules are present (to support the VM use case).
       # - A test user (with root privileges) is automatically logged in.
       #
       # It is intended to be used as a part of a virtual machine configuration,
@@ -134,11 +143,30 @@
           self.nixosModules.test
         ];
 
+        # This module is intended to be used in a virtual machine configuration
+        # that is run locally. Developer should be able to access the Discourse
+        # instance running in the VM from the host system's web browser, using
+        # the address http://localhost:8080.
+        # What should exactly happen here, network-wise?
+        # 1. Web browser running on the host system sends a request to
+        # http://localhost:8080.
+        # 2. QEUMU (which runs the VM with this configuration -
+        # self.nixosModules.dev) receives the request and forwards the request
+        # to the guest system using the port forwarding configuration specified
+        # here.
+        # 3. In the VM (guest system), Nginx listens on localhost:80. It
+        # receives the request and proxies it to Discourse listening on a UNIX
+        # domain socket bound to some filesystem path.
+        # 4. Discourse server receives the request and generates a response.
+
         # These options are passed to the quemu that runs the dev VM locally.
+        # Some of them are inherited from the test configuration already.
         virtualisation = {
+          # The way the tests are run causes graphics to disable by default.
+          # Running the development VM is different, so we need to disable it
+          # explicitly here.
           graphics = false;
-          memorySize = 4096;
-          cores = 8;
+
           # Expose Discourse at port 8080 (Mailhog at 8081) on the host system.
           # This makes it possible to access the Discourse instance and Mailhog
           # UI from the host-system browser.
@@ -148,36 +176,41 @@
           ];
         };
 
-        # Set the domain name used by Discourse to localhost. Without this
-        # setting, accessing Discourse from the host system at
-        # http://localhost:8080 would result in Discourse rejecting the
-        # request.
+        # Set the domain name used by Discourse to localhost:8080.
+        # Specifying the port is required to make Discourse accept requests
+        # coming from the host system's web browser.
         # The setting is using `lib.mkForce` to make it possible to override
-        # the value specified in the test configuration.
-        services.discourse.hostname = lib.mkForce "localhost";
+        # the value specified in the inherited test configuration.
+        services.discourse.hostname = lib.mkForce "localhost:8080";
 
-        # Discourse expects to be run on port 80, but we want to be exposed on
-        # host system's localhost:8080. This need is dictated by the fact that
-        # setting up a service on port 80 requires root privileges, which
-        # shouldn't be required for local development.
+        # Discourse devs expect it to be run on port 80, but we want to be
+        # exposed on host system's localhost:8080. This need is dictated by the
+        # fact that setting up a service on port 80 requires root privileges,
+        # which shouldn't be required for local development.
         #
         # By leveraging the fact that Discourse is already run behind Nginx, we
-        # can use it to rewrite requests in such way, that Discourse would be
-        # tricked into thinking that the request destination is port 80.
+        # can use it to rewrite some problematic requests.
         #
         # That's a bit hacky, but it makes us able to reuse the options that
         # NixOS provides for configuration of a Discourse service. Otherwise,
         # we would have to setup the Discourse installation in the development
         # configuration from scratch:
         # https://meta.discourse.org/t/install-discourse-on-ubuntu-or-debian-for-development/14727
-        services.nginx.virtualHosts."localhost" = {
+        services.nginx.virtualHosts."localhost:8080" = {
+          # SVG sprite sheet is usually available at
+          # http://somedomain/svg-sprite/somedomain/blahblahblah. Our Discourse
+          # url contains a port number, which Discourse doesn't like, so requests like:
+          # curl http://localhost:8080/svg-sprite/localhost:8080/blahblahblah
+          # are rejected. By rewriting them to look like:
+          # curl http://localhost:8080/svg-sprite/localhost/blahblahblah
+          # we can make them work. This is a hack that is only needed for
+          # development purposes. Tests & production don't need it (as they
+          # don't use a port number in the Discourse url).
           extraConfig = ''
-            proxy_set_header Host localhost;
-            proxy_redirect http://localhost/ http://localhost:8080;
-
-            proxy_hide_header Content-Security-Policy;
+            rewrite ^/svg-sprite/localhost:8080/(.*) /svg-sprite/localhost/$1 break;
           '';
         };
+
 
         # Basic networking configuration.
         networking.interfaces.eth0.useDHCP = true;
