@@ -66,7 +66,8 @@
       };
 
       # This module defines the discourse server configuration for testing
-      # purposes. It is intended to be used as a part of the flake checks.
+      # purposes. It is intended to be used as a part of the checks defined in
+      # self.checks (see ./tests/basic.nix for details).
       #
       # Test configuration differs from the production one in the
       # following ways:
@@ -250,6 +251,10 @@
             };
           in
           vm.config.system.build.vm;
+      };
+
+      checks.${system} = {
+        basic = import ./tests/basic/setup.nix { inherit self pkgs; };
       };
 
       devShells.${system}.default = pkgs.mkShell {
