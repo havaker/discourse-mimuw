@@ -232,19 +232,25 @@
         environment.variables.TERM = "xterm-256color";
       };
 
-      # Defines a virtual machine configuration for local development.
-      # By packaging the VM configuration, it can be run with a simple
-      # `nix run# .#vm`.
-      packages.x86_64-linux.vm =
-        let
-          vm = nixpkgs.lib.nixosSystem {
-            inherit system;
-            modules = [
-              (x: { virtualisation.vmVariant = self.nixosModules.dev x; })
-            ];
-          };
-        in
-        vm.config.system.build.vm;
+      packages.${system} = {
+        # This package provides a script that can be used to verify that
+        # logging in to the Discourse webUI works for a given user.
+        verify-login = pkgs.callPackage ./packages/verify-login/def.nix { };
+
+        # Defines a virtual machine configuration for local development.
+        # By packaging the VM configuration, it can be run with a simple
+        # `nix run# .#vm`.
+        vm =
+          let
+            vm = nixpkgs.lib.nixosSystem {
+              inherit system;
+              modules = [
+                (x: { virtualisation.vmVariant = self.nixosModules.dev x; })
+              ];
+            };
+          in
+          vm.config.system.build.vm;
+      };
 
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
