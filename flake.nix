@@ -234,9 +234,9 @@
       };
 
       packages.${system} = {
-        # This package provides a script that can be used to verify that
-        # logging in to the Discourse webUI works for a given user.
-        verify-login = pkgs.callPackage ./packages/verify-login/def.nix { };
+        # This package provides scripts that can be used to verify that the
+        # Discourse instance is behaving correctly.
+        selenium-scenarios = pkgs.callPackage ./packages/selenium-scenarios/def.nix { };
 
         # Defines a virtual machine configuration for local development.
         # By packaging the VM configuration, it can be run with a simple
@@ -252,6 +252,16 @@
           in
           vm.config.system.build.vm;
       };
+
+      apps.${system} = {
+        # Expose the `verify-login` script as an app that is runnable using
+        # `nix run .#verify-login`.
+        verify-login = {
+          program = "${self.packages.${system}.selenium-scenarios}/bin/verify-login";
+          type = "app";
+        };
+      };
+
 
       checks.${system} = {
         basic = import ./tests/basic/setup.nix { inherit self pkgs; };

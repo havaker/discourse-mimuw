@@ -9,12 +9,12 @@
 , firefox
 , geckodriver
 ,
-}: 
+}:
 # Using a language-specific package helper - in this case,
 # `buildPythonApplication`. See https://nixos.wiki/wiki/Packaging/Python
 # for more details.
 python3Packages.buildPythonApplication rec {
-  pname = "verify-login"; # Define the name of the package.
+  pname = "selenium-scenarios"; # Define the name of the package.
   version = "0.0.0"; # Some version is required.
   src = ./.; # Source code of the package is here (./main.py and ./setup.py).
 
@@ -32,10 +32,10 @@ python3Packages.buildPythonApplication rec {
   # to rename the main.py executable to the name of the package, so that it can
   # be run with `nix run`.
   postInstall = ''
-    wrapProgram $out/bin/main.py \
-      --prefix PATH : ${lib.makeBinPath [firefox geckodriver]}
-
-    mv $out/bin/main.py $out/bin/${pname}
+    for f in $out/bin/*; do
+      wrapProgram "$f" \
+        --prefix PATH : ${lib.makeBinPath [firefox geckodriver]}
+    done
   '';
 }
 

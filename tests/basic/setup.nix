@@ -8,14 +8,16 @@
       ];
     };
 
-    client = { self, config, pkgs, ... }: {
+    client = { self, nodes, ... }: {
       environment.systemPackages = [
-        self.packages.x86_64-linux.verify-login
+        self.packages.x86_64-linux.selenium-scenarios
       ];
 
+      # This leaks the password into the store, but it is already in the store
+      # by self.nixosModules.test anyway.
       environment.sessionVariables = {
-        DISCOURSE_USERNAME = "balenciaga";
-        DISCOURSE_PASSWORD = "qwerasdfZXCV123";
+        PASSWORD = builtins.readFile nodes.server.services.discourse.admin.passwordFile;
+        USERNAME = nodes.server.services.discourse.admin.username;
       };
     };
   };
