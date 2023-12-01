@@ -9,7 +9,8 @@ setup(
     py_modules=['scenarios', 'utils'],
     entry_points={
         'console_scripts': [
-            'verify-login = scenarios:verify_login'
+            'verify-login = scenarios:verify_login',
+            'registration = scenarios:registration'
         ]
     },
 )

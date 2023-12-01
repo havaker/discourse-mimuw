@@ -1,4 +1,4 @@
-# Defines a derivation that builds a Python application from this directory.
+# Defines a derivation that builds Python applications from this directory.
 #
 # This Nix expression is intended to be used with the `pkgs.callPackage`
 # function (see https://nixos-and-flakes.thiscute.world/nixpkgs/callpackage for
@@ -16,12 +16,12 @@
 python3Packages.buildPythonApplication rec {
   pname = "selenium-scenarios"; # Define the name of the package.
   version = "0.0.0"; # Some version is required.
-  src = ./.; # Source code of the package is here (./main.py and ./setup.py).
+  src = ./.; # Source code of the package is here (./scenarios.py, ...).
 
-  # main.py depends on selenium
-  propagatedBuildInputs = [ python3Packages.selenium ];
+  # Scenarios depend on selenium
+  propagatedBuildInputs = with python3Packages; [ selenium requests ];
 
-  # During the build, we want to wrap the main.py script so that it can find
+  # During the build, we want to wrap the output scripts so that they can find
   # the firefox and geckodriver executables at runtime. `wrapProgram` is a tool
   # that can do this for us. See
   # https://ryantm.github.io/nixpkgs/stdenv/stdenv/#ssec-stdenv-dependencies-overview-example

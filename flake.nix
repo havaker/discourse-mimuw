@@ -61,6 +61,45 @@
               title = "Forum Studenckie WMIMUW";
               short_site_description = "rm -rf facebook_groopki";
             };
+            login = {
+              login_required = false;
+
+              # Don't inform users that an account exists with a given email
+              # address during signup or during forgot password flow. Require
+              # full email for 'forgotten password' requests.
+              hide_email_address_taken = true;
+
+              # Combination of the below 2 settings blocks unsupervised
+              # registration of users that do not have student.mimuw.edu.pl
+              # email address.
+              must_approve_users = true;
+              auto_approve_email_domains = "students.mimuw.edu.pl";
+            };
+            users = {
+              # I believe that this improves the social aspect of student
+              # interactions.
+              full_name_required = true;
+              prioritize_username_in_ux = false; # Use name instead.
+
+              # No stalking.
+              enable_user_directory = false;
+              hide_user_profiles_from_public = true;
+            };
+
+            # Convenience
+            posts.show_copy_button_on_codeblocks = true;
+            # Annoying
+            email.disable_digest_emails = true;
+
+            spam = {
+              # Provide more information to moderators.
+              notify_mods_when_user_silenced = true;
+            };
+
+            user_preferences = {
+              # No spam.
+              default_email_digest_frequency = 0;
+            };
           };
         };
       };
@@ -258,6 +297,11 @@
         # `nix run .#verify-login`.
         verify-login = {
           program = "${self.packages.${system}.selenium-scenarios}/bin/verify-login";
+          type = "app";
+        };
+
+        registration = {
+          program = "${self.packages.${system}.selenium-scenarios}/bin/registration";
           type = "app";
         };
       };

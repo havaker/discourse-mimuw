@@ -21,8 +21,21 @@ class ArgumentsProvider:
     def add_credentials(self):
         self.parser.add_argument('--username', default='balenciaga')
 
+    def add_email(self):
+        self.parser.add_argument('--email', default='jkjk694202137@students.mimuw.edu.pl')
+
+    def add_full_name(self):
+        self.parser.add_argument('--name', default='Jan Kowalski')
+
+    def add_mailhog(self):
+        self.parser.add_argument('--mailhog-address', default='http://server:8025')
+
     def parse(self):
         args = self.parser.parse_args()
+
+        # If trailing slash is not present, add it.
+        if not args.address.endswith('/'):
+            args.address += '/'
 
         args.password = os.environ.get('PASSWORD')
         if hasattr(args, 'username') and not args.password:
@@ -32,14 +45,17 @@ class ArgumentsProvider:
         return args
 
 @contextlib.contextmanager
-def webdriver(args):
+def webdriver(args, implicit_wait_seconds=10):
     options = Options()
     if args.headless:
         options.add_argument("--headless")
 
     driver = Firefox(options)
-    # Wait up to 10 seconds for elements to appear
-    driver.implicitly_wait(10)
+
+    if implicit_wait_seconds is not None:
+        # Wait up to `implicit_wait_seconds` for elements to appear.
+        driver.implicitly_wait(implicit_wait_seconds)
+
     try:
         yield driver
     finally:
