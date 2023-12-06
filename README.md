@@ -28,7 +28,7 @@ You may need to wait some time after boot for the Discourse service startup to f
 - Invoking `journalctl -f` in the VM will show you the system logs.
 - Invoking `systemctl status discourse` will also show you the status of the Discourse service e.g. Whether it completed the startup process.
 
-## Testing
+### Testing
 
 To check if the flake evaluates correctly, run:
 ```bash
