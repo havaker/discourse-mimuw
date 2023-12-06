@@ -45,6 +45,12 @@
       # because in production it should point to some real domain, while in
       # development it should point to localhost.
       nixosModules.base = { ... }: {
+        imports = [ ./modules/discourse-extended.nix ];
+
+        nixpkgs.overlays = [
+          (final: prev: { applier = self.packages.${system}.applier; })
+        ];
+
         system.stateVersion = "23.05";
 
         services.postgresql.package = pkgs.postgresql_13;
@@ -100,6 +106,14 @@
               # No spam.
               default_email_digest_frequency = 0;
             };
+          };
+          # Add all users with student.mimuw.edu.pl email address to the
+          # students group.
+          groups.students = {
+            name = "students";
+            full_name = "Students group";
+            automatic_membership_email_domains = [ "students.mimuw.edu.pl" ];
+            visibility_level = "members";
           };
         };
       };
@@ -277,6 +291,8 @@
         # Discourse instance is behaving correctly.
         selenium-scenarios = pkgs.callPackage ./packages/selenium-scenarios/def.nix { };
 
+        applier = pkgs.callPackage ./packages/applier/def.nix { };
+
         # Defines a virtual machine configuration for local development.
         # By packaging the VM configuration, it can be run with a simple
         # `nix run# .#vm`.
@@ -314,6 +330,10 @@
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
           pkgs.nixd
+          pkgs.python3Packages.python-lsp-server
+          pkgs.python3Packages.yapf
+          self.packages.${system}.selenium-scenarios
+          self.packages.${system}.applier
         ];
       };
     };
