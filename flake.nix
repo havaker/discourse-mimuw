@@ -286,12 +286,16 @@
         environment.variables.TERM = "xterm-256color";
       };
 
-      packages.${system} = {
+      packages.${system} = rec {
         # This package provides scripts that can be used to verify that the
         # Discourse instance is behaving correctly.
         selenium-scenarios = pkgs.callPackage ./packages/selenium-scenarios/def.nix { };
 
         applier = pkgs.callPackage ./packages/applier/def.nix { };
+
+        # This package provides an auto-generated Python client for the
+        # Discourse API.
+        api-client = pkgs.callPackage ./packages/api-client/def.nix { };
 
         # Defines a virtual machine configuration for local development.
         # By packaging the VM configuration, it can be run with a simple
@@ -325,6 +329,7 @@
 
       checks.${system} = {
         basic = import ./tests/basic/setup.nix { inherit self pkgs; };
+        api-client = import ./tests/api-client/setup.nix { inherit self pkgs; };
       };
 
       devShells.${system}.default = pkgs.mkShell {
@@ -334,6 +339,7 @@
           pkgs.python3Packages.yapf
           self.packages.${system}.selenium-scenarios
           self.packages.${system}.applier
+          self.packages.${system}.api-client
         ];
       };
     };
