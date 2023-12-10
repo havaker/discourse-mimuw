@@ -48,6 +48,9 @@ let
       psql 'discourse_test' -tAc "CREATE EXTENSION IF NOT EXISTS pg_trgm"
       psql 'discourse_test' -tAc "CREATE EXTENSION IF NOT EXISTS hstore"
 
+      substituteInPlace spec/swagger_helper.rb \
+        --replace "openapi: \"3.1.0\"" "openapi: \"3.0.3\""
+
       export RAILS_ENV=test
       bundle exec rake db:migrate >/dev/null
     '';
